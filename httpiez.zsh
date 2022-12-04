@@ -1,5 +1,7 @@
 request_file="${funcfiletrace[1]:a:r}"
 request_dir="${request_file:h}"
+debug="${debug:-false}"
+dry="${dry:-false}"
 
 () {
 
@@ -18,7 +20,7 @@ request_dir="${request_file:h}"
 		while true; do
 			
 			if [[ -f "$cd$conf" ]]; then
-				echo "sourcing $cd$conf"
+				$debug && echo "sourcing $cd$conf"
 				source "$cd$conf"
 			fi
 			
@@ -34,7 +36,7 @@ request_dir="${request_file:h}"
 		root="$cd"
 		while [[ -f "$cd$conf" ]]; do
 
-			echo "sourcing $cd$conf"
+			$debug && echo "sourcing $cd$conf"
 			source "$cd$conf"
 			root="$cd"
 
@@ -51,9 +53,14 @@ request_dir="${request_file:h}"
 
 }
 
-history_dir="${history_dir:-${root}/history}"
+history_dir="${history_dir:-${root}history}"
 vared_history_dir="${vared_history_dir:-${history_dir}/vared}"
 request_history_dir="${request_history_dir:-${history_dir}/request/$(date +%Y/%m/%d)}"
+
+$debug && echo "root: $root
+request: $request
+vared_history_dir: $vared_history_dir
+request_history_dir: $request_history_dir"
 
 typeset -a resolved=()
 
@@ -67,19 +74,20 @@ make_request_history_file() {
 }
 
 http() {
-	typeset -a cmd=(http -v --pretty none $@)
+	typeset -a cmd=(http -v $@)
 	resolved+=(cmd)
 	if [[ $vars == 1 ]]; then
 		typeset -p "${resolved[@]}"
 	fi
 	typeset -p "${resolved[@]}" >"$(make_request_history_file "req" "zsh")"
-	if [[ $dry == 1 ]]; then
+	if $dry; then
 		echo "${cmd[@]}"
 		echo "...press any key..."
 		read -s -k1
-		return
-	fi 
-	command "${cmd[@]}"
+	else  
+		resp=$(make_request_history_file "resp" "txt")
+		command "${cmd[@]}" | tee "$resp"
+	fi
 }
 
 #
@@ -88,37 +96,25 @@ http() {
 # $3 - initial value
 #
 ask_vared() {
+	[[ -z $1 ]] && echo "ask_vared: history scope can't be empty" && return 1
+	[[ -z $2 ]] && echo "ask_vared: variable name can't be empty" && return 1
+
 	local v=$2
-	if [[ -v 2 ]]; then
+	if [[ -v 3 ]]; then
 		typeset -g $v=$3
 	fi
 
 	local dir="${vared_history_dir}"
 	case $1 in 
-	global)
-		;;
-
-	group)
-		dir+="/${request%/*}"
-		;;
-
-	request)
-		dir+="/${request}"
-		;;
-
-	*)
-		dir+="/${1}"
-		;;
+	global) ;;
+	group) dir+="/${request%/*}";;
+	request) dir+="/${request}";;
+	*) dir+="/${1}";;
 	esac
 
 	mkdir -p "$dir"
 	fc -pa "$dir/${v}.zsh_history"
-
 	vared -ehcp "$v: " "$v"
-	if [[ $? != 0 || -z "${(P)v}" ]]; then
-		echo "$v required, but not defined"
-		exit 1
-	fi
 
 	print -s "${(P)v}"
 }
@@ -134,7 +130,7 @@ resolve_variant() {
 	if [[ -v $1 ]]; then
 		return 0
 	fi
-	typeset -f $1 >/dev/null && $1
+	typeset -f $1 >/dev/null && $1 && [[ -v $1 ]]
 }
 
 resolve() {
