@@ -1,5 +1,5 @@
-# Absolute path to definition file without extension
-def_file="${funcfiletrace[1]:a:r}"
+# Path to definition script
+def="$1"
 
 # Prints debug messages (sourced files and some variables)
 debug="${debug:-false}"
@@ -8,21 +8,13 @@ debug="${debug:-false}"
 dry="${dry:-false}"
 
 # Root directory
-root="${${${root:-.}:a}:#/}/"
+root="${PWD:#/}/"
 
 # Whether to open output in $EDITOR
 edit=${edit:-false}
 
-# Relative path to definition file (relative from $root)
-def="${def_file#${root}}"
-
 # Configuration file name
 conf="ic.conf.zsh"
-
-if [[ "${def}" == "${def_file}" ]]; then
-	echo "invalid root ($root) - it must be parent of def_file ($def_file)"
-	exit 1
-fi
 
 flag() {
 	[[ ${1:l} =~ '^(y|yes|t|true|1)$' ]]
@@ -45,29 +37,10 @@ debug_source() {
 	[[ -f $1 ]] && debug "source $1" && source "$1"
 }
 
-init() {
-	local slash_def="/$def"
-	local -a els=("${(s:/:)${slash_def:h}}")
-	local cd="${root}"
-	local i
-	for ((i = 1; i <= ${#els}; i++)); do
-		(( $i > 1 )) && cd="${cd}${els[$i]}/"
-		debug_source "$cd$conf"
-	done
-}
-
-init
-
-history_prefix="${history_prefix:-${root}/history/}"
-vared_history_prefix="${vared_history_prefix:-${history_prefix}vared/}"
-def_history_prefix="${def_history_prefix:-${history_prefix}def/$(date +%Y/%m/%d/%H_%M_%S_)}"
-
-debug_dump root def vared_history_prefix def_history_prefix
-
 typeset -a resolved=()
 
 make_def_history_file() {
-	typeset -g $1="${def_history_prefix}${def//\//_}_${1}"
+	typeset -g $1="${def_history_prefix}${${def:r}//\//_}_${1}"
 	if [[ -v 2 ]]; then
 		typeset -g $1="${(P)1}.$2"
 	fi
@@ -83,11 +56,22 @@ run() {
 	make_def_history_file input zsh
 	typeset -p "${resolved[@]}" >"$input"
 	
-	flag $dry && echo "${cmd[@]}\n...press any key..." && read -s -k1 && return 0
+	if flag $dry; then
+		echo "${cmd[@]}"
+		echo "...press any key..."
+		read -s -k1
+		return 0
+	fi
 
 	make_def_history_file output txt
 	command "${cmd[@]}" | tee "$output"
-	flag $edit && eval "$EDITOR" "$output"
+	local result=$?
+
+	if flag $edit; then
+		eval "$EDITOR" "$output"
+	fi
+
+	return $result
 }
 
 #
@@ -106,8 +90,8 @@ ask_vared() {
 	local prefix="${vared_history_prefix}"
 	case $scope in 
 	global) ;;
-	group) prefix+="${def%/*}";;
-	local) prefix+="${def}";;
+	group) prefix+="${${def:r}%/*}";;
+	local) prefix+="${def:r}";;
 	*) prefix+="${scope}";;
 	esac
 
@@ -124,7 +108,7 @@ ask_vared() {
 
 ask_file() {
 	make_def_history_file "$1"
-	cp "${def_file}.example"* "${(P)1}"
+	cp "${def:r}.example"* "${(P)1}"
 	eval "$EDITOR" "${(P)1}"
 }
 
@@ -140,7 +124,7 @@ resolve() {
 	local prefix
 	local variant
 	for v in ${@}; do
-		prefix="/$def"
+		prefix="/${def:r}"
 		while [[ $prefix ]]; do
 			variant="${${prefix:1}//\//_}_$v"
 			if resolve_variant $variant; then
@@ -156,3 +140,27 @@ resolve() {
 		resolved+=($v)
 	done
 }
+
+init() {
+	history_prefix="${history_prefix:-${root}/history/}"
+	vared_history_prefix="${vared_history_prefix:-${history_prefix}vared/}"
+	def_history_prefix="${def_history_prefix:-${history_prefix}def/$(date +%Y/%m/%d/%H_%M_%S_)}"
+	debug_dump root def vared_history_prefix def_history_prefix
+}
+
+configure() {
+	local -a els=("${(s:/:)def}")
+
+	local cd="${root}"
+	debug_source "$cd$conf"
+	
+	local i
+	for ((i = 1; i < ${#els}; i++)); do
+		cd="${cd}${els[$i]}/"
+		debug_source "$cd$conf"
+	done
+}
+
+configure
+init
+debug_source "$def"

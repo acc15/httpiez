@@ -1,10 +1,11 @@
+_ic_home="${0:a:h}"
 typeset "_${1}_dir"="$2"
 
 $1() {
 	local name="_${funcstack[1]}"
 	local dirname="${name}_dir"
 	local dir="${(P)dirname}"
-	zsh -i -c "cd $dir && source $1"
+	zsh -i -c "cd $dir && source \"${_ic_home}/ic.zsh\" $1"
 }
 
 # Completions
