@@ -1,7 +1,9 @@
 def_file="${funcfiletrace[1]:a:r}"
-def_dir="${def_file:h}"
 debug="${debug:-false}"
 dry="${dry:-false}"
+root="${${${root:-.}:a}:#/}/"
+def="${def_file#${root}}"
+conf="ic.conf.zsh"
 
 flag() {
 	[[ ${1:l} =~ '^(y|yes|t|true|1)$' ]]
@@ -25,35 +27,18 @@ debug_source() {
 	source "$1"
 }
 
-() {
+if [[ "${def}" == "${def_file}" ]]; then
+	echo "invalid root ($root) - it must be parent of def_file ($def_file)"
+	exit 1
+fi
 
-	local conf="ic.conf.zsh"
-	local cd="${def_dir:#/}/"
-
-	if [[ -v root ]]; then
-		root="${${root:a}:#/}/"
-		def="${def_file#${root}}"
-		if [[ "${def}" == "$def_file" ]]; then
-			echo "invalid root ($root) - it must be parent of def_dir ($def_dir)"
-			exit 1
-		fi
-		while true; do
-			[[ -f "$cd$conf" ]] && debug_source "$cd$conf"
-			[[ "$cd" == "$root" ]] && break
-			cd="${${cd:h}:#/}/"
-		done
-	else
-		root="$cd"
-		while [[ -f "$cd$conf" ]]; do
-			debug_source "$cd$conf"
-			root="$cd"
-			[[ "$cd" == "/" ]] && break
-			cd="${${cd:h}:#/}/"
-		done
-		def="${def_file#${root}}"
-	fi
-
-}
+cd="${def_file}"
+while true; do
+	cd="${${cd:h}:#/}/"
+	[[ -f "$cd$conf" ]] && debug_source "$cd$conf"
+	[[ "$cd" == "$root" ]] && break
+done
+unset cd
 
 history_prefix="${history_prefix:-${root}history/}"
 vared_history_prefix="${vared_history_prefix:-${history_prefix}vared/}"
@@ -62,6 +47,7 @@ def_history_prefix="${def_history_prefix:-${history_prefix}def/$(date +%Y/%m/%d/
 debug_dump root def vared_history_prefix def_history_prefix
 
 typeset -a resolved=()
+
 
 make_def_history_file() {
 	typeset -g $1="${def_history_prefix}${def//\//_}_${1}"
