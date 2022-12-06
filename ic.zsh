@@ -3,17 +3,26 @@ def_dir="${def_file:h}"
 debug="${debug:-false}"
 dry="${dry:-false}"
 
-debug() {
-	$debug && echo "$@"
+flag() {
+	[[ ${1:l} =~ '^(y|yes|t|true|1)$' ]]
 }
 
-debug_print() {
-	if ! $debug; then
+debug() {
+	flag $debug && echo "$@"
+}
+
+debug_dump() {
+	if ! flag $debug; then
 		return
 	fi
 	for v in "$@"; do
 		echo "${v}: ${(P)v}"
 	done
+}
+
+debug_source() {
+	debug "source $1"
+	source "$1"
 }
 
 () {
@@ -29,24 +38,16 @@ debug_print() {
 			exit 1
 		fi
 		while true; do
-			if [[ -f "$cd$conf" ]]; then
-				debug "sourcing $cd$conf"
-				source "$cd$conf"
-			fi
-			if [[ "$cd" == "$root" ]]; then
-				break
-			fi
+			[[ -f "$cd$conf" ]] && debug_source "$cd$conf"
+			[[ "$cd" == "$root" ]] && break
 			cd="${${cd:h}:#/}/"
 		done
 	else
 		root="$cd"
 		while [[ -f "$cd$conf" ]]; do
-			debug "sourcing $cd$conf"
-			source "$cd$conf"
+			debug_source "$cd$conf"
 			root="$cd"
-			if [[ "$cd" == "/" ]]; then
-				break
-			fi
+			[[ "$cd" == "/" ]] && break
 			cd="${${cd:h}:#/}/"
 		done
 		def="${def_file#${root}}"
@@ -58,7 +59,7 @@ history_prefix="${history_prefix:-${root}history/}"
 vared_history_prefix="${vared_history_prefix:-${history_prefix}vared/}"
 def_history_prefix="${def_history_prefix:-${history_prefix}def/$(date +%Y/%m/%d/%H_%M_%S_)}"
 
-debug_print root def vared_history_prefix def_history_prefix
+debug_dump root def vared_history_prefix def_history_prefix
 
 typeset -a resolved=()
 
@@ -78,7 +79,7 @@ run() {
 	fi
 	make_def_history_file input zsh
 	typeset -p "${resolved[@]}" >"$input"
-	if $dry; then
+	if flag $dry; then
 		echo "${cmd[@]}"
 		echo "...press any key..."
 		read -s -k1
@@ -136,7 +137,7 @@ resolve() {
 	local variant
 	for v in ${@}; do
 		prefix="/$def"
-		while [[ ! -z $prefix ]]; do
+		while [[ $prefix ]]; do
 			variant="${${prefix:1}//\//_}_$v"
 			if resolve_variant $variant; then
 				typeset -g $v=${(P)variant}
