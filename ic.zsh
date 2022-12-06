@@ -29,7 +29,7 @@ flag() {
 }
 
 debug() {
-	flag $debug && echo "$@"
+	flag $debug && echo "$@" || true
 }
 
 debug_dump() {
@@ -42,19 +42,23 @@ debug_dump() {
 }
 
 debug_source() {
-	debug "source $1"
-	source "$1"
+	[[ -f $1 ]] && debug "source $1" && source "$1"
 }
 
-cd="${def_file}"
-while true; do
-	cd="${${cd:h}:#/}/"
-	[[ -f "$cd$conf" ]] && debug_source "$cd$conf"
-	[[ "$cd" == "$root" ]] && break
-done
-unset cd
+init() {
+	local slash_def="/$def"
+	local -a els=("${(s:/:)${slash_def:h}}")
+	local cd="${root}"
+	local i
+	for ((i = 1; i <= ${#els}; i++)); do
+		(( $i > 1 )) && cd="${cd}${els[$i]}/"
+		debug_source "$cd$conf"
+	done
+}
 
-history_prefix="${history_prefix:-${root}history/}"
+init
+
+history_prefix="${history_prefix:-${root}/history/}"
 vared_history_prefix="${vared_history_prefix:-${history_prefix}vared/}"
 def_history_prefix="${def_history_prefix:-${history_prefix}def/$(date +%Y/%m/%d/%H_%M_%S_)}"
 
@@ -84,7 +88,7 @@ run() {
 		read -s -k1
 		return 0
 	fi
-	
+
 	make_def_history_file output txt
 	command "${cmd[@]}" | tee "$output"
 	if flag $edit; then
@@ -93,32 +97,35 @@ run() {
 }
 
 #
-# $1 - history scope (dir prefixes)
-# $2 - variable name
-# $3 - initial value
+# $1 - variable name
+# $2 - initial value
 #
 ask_vared() {
-	[[ -z $1 ]] && echo "ask_vared: history scope can't be empty" && return 1
-	[[ -z $2 ]] && echo "ask_vared: variable name can't be empty" && return 1
+	[[ -z $1 ]] && echo "ask_vared: variable name can't be empty" && return 1
 
-	local v=$2
-	if [[ -v 3 ]]; then
-		typeset -g $v=$3
+	local scope="${scope:-local}"
+
+	if [[ -v 2 ]]; then
+		typeset -g $1=$2
 	fi
 
 	local prefix="${vared_history_prefix}"
-	case $1 in 
+	case $scope in 
 	global) ;;
 	group) prefix+="${def%/*}";;
 	local) prefix+="${def}";;
-	*) prefix+="${1}";;
+	*) prefix+="${scope}";;
 	esac
 
 	mkdir -p "${prefix%/*}"
 	fc -pa "$prefix${v}.zsh_history"
-	vared -ehcp "$v: " "$v"
 
-	print -s "${(P)v}"
+	local vared=(vared -ehcp "$1: ")
+	[[ $desc ]] && vared+=(-r "-- $desc")
+	vared+=("$1")
+
+	"${vared[@]}"
+	print -s "${(P)1}"
 }
 
 ask_file() {
