@@ -1,9 +1,28 @@
+# Absolute path to definition file without extension
 def_file="${funcfiletrace[1]:a:r}"
+
+# Prints debug messages (sourced files and some variables)
 debug="${debug:-false}"
+
+# Dry run (just print command and exit)
 dry="${dry:-false}"
+
+# Root directory
 root="${${${root:-.}:a}:#/}/"
+
+# Whether to open output in $EDITOR
+edit=${edit:-false}
+
+# Relative path to definition file (relative from $root)
 def="${def_file#${root}}"
+
+# Configuration file name
 conf="ic.conf.zsh"
+
+if [[ "${def}" == "${def_file}" ]]; then
+	echo "invalid root ($root) - it must be parent of def_file ($def_file)"
+	exit 1
+fi
 
 flag() {
 	[[ ${1:l} =~ '^(y|yes|t|true|1)$' ]]
@@ -27,11 +46,6 @@ debug_source() {
 	source "$1"
 }
 
-if [[ "${def}" == "${def_file}" ]]; then
-	echo "invalid root ($root) - it must be parent of def_file ($def_file)"
-	exit 1
-fi
-
 cd="${def_file}"
 while true; do
 	cd="${${cd:h}:#/}/"
@@ -47,7 +61,6 @@ def_history_prefix="${def_history_prefix:-${history_prefix}def/$(date +%Y/%m/%d/
 debug_dump root def vared_history_prefix def_history_prefix
 
 typeset -a resolved=()
-
 
 make_def_history_file() {
 	typeset -g $1="${def_history_prefix}${def//\//_}_${1}"
@@ -69,9 +82,13 @@ run() {
 		echo "${cmd[@]}"
 		echo "...press any key..."
 		read -s -k1
-	else  
-		make_def_history_file output txt
-		command "${cmd[@]}" | tee "$output"
+		return 0
+	fi
+	
+	make_def_history_file output txt
+	command "${cmd[@]}" | tee "$output"
+	if flag $edit; then
+		eval "$EDITOR" "$output"
 	fi
 }
 
