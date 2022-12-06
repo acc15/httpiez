@@ -82,18 +82,12 @@ run() {
 	fi
 	make_def_history_file input zsh
 	typeset -p "${resolved[@]}" >"$input"
-	if flag $dry; then
-		echo "${cmd[@]}"
-		echo "...press any key..."
-		read -s -k1
-		return 0
-	fi
+	
+	flag $dry && echo "${cmd[@]}\n...press any key..." && read -s -k1 && return 0
 
 	make_def_history_file output txt
 	command "${cmd[@]}" | tee "$output"
-	if flag $edit; then
-		eval "$EDITOR" "$output"
-	fi
+	flag $edit && eval "$EDITOR" "$output"
 }
 
 #
