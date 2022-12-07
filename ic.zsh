@@ -37,7 +37,7 @@ debug_source() {
 	[[ -f $1 ]] && debug "source $1" && source "$1"
 }
 
-typeset -a resolved=()
+typeset -ga resolved=()
 
 make_def_history_file() {
 	typeset -g $1="${def_history_prefix}${${def:r}//\//_}_${1}"
@@ -48,9 +48,9 @@ make_def_history_file() {
 }
 
 run() {
-	typeset -ag cmd=("$@")
+	typeset -ga cmd=("$@")
 	resolved+=(cmd)
-	if [[ $vars == 1 ]]; then
+	if flag $debug; then
 		typeset -p "${resolved[@]}"
 	fi
 	make_def_history_file input zsh
