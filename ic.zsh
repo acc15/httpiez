@@ -103,6 +103,10 @@ ask_vared() {
 	vared+=("$1")
 
 	"${vared[@]}"
+	if [[ -z "${(P)1}" && "$required" == "true" ]]; then
+		return 1
+	fi
+	
 	print -s "${(P)1}"
 }
 
