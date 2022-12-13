@@ -24,13 +24,14 @@ debug() {
 	flag $debug && echo "$@" || true
 }
 
-debug_dump() {
-	if ! flag $debug; then
-		return
-	fi
+dump() {
 	for v in "$@"; do
-		echo "${v}: ${(P)v}"
+		echo "${v} [type: ${(tP)v}, len: ${#${(P)v}}]: ${(P)v}"
 	done
+}
+
+debug_dump() {
+	flag $debug && dump "$@"
 }
 
 debug_source() {
@@ -50,11 +51,9 @@ make_def_history_file() {
 run() {
 	typeset -ga cmd=("$@")
 	resolved+=(cmd)
-	if flag $debug; then
-		typeset -p "${resolved[@]}"
-	fi
+	debug_dump "${resolved[@]}"
 	make_def_history_file input zsh
-	typeset -p "${resolved[@]}" >"$input"
+	dump "${resolved[@]}" >"$input"
 	
 	if flag $dry; then
 		echo "${cmd[@]}"
@@ -90,8 +89,8 @@ ask_vared() {
 	local prefix="${vared_history_prefix}"
 	case $scope in 
 	global) ;;
-	group) prefix+="${${def:r}%/*}";;
-	local) prefix+="${def:r}";;
+	group) prefix+="${${def:r}%/*}/";;
+	local) prefix+="${def:r}/";;
 	*) prefix+="${scope}";;
 	esac
 
